@@ -1,16 +1,21 @@
 package com.upgrad.FoodOrderingApp.api.controller;
 
+import com.upgrad.FoodOrderingApp.api.model.LoginResponse;
 import com.upgrad.FoodOrderingApp.api.model.SignupCustomerRequest;
 import com.upgrad.FoodOrderingApp.api.model.SignupCustomerResponse;
 import com.upgrad.FoodOrderingApp.service.businness.CustomerBusinessService;
+import com.upgrad.FoodOrderingApp.service.entity.CustomerAuthTokenEntity;
 import com.upgrad.FoodOrderingApp.service.entity.CustomerEntity;
+import com.upgrad.FoodOrderingApp.service.exception.AuthenticationFailedException;
 import com.upgrad.FoodOrderingApp.service.exception.SignUpRestrictedException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.Base64;
 import java.util.UUID;
 
 @RestController
@@ -37,5 +42,20 @@ public class CustomerController {
                 .status("CUSTOMER SUCCESSFULLY REGISTERED");
 
         return new ResponseEntity<SignupCustomerResponse>(customerResponse, HttpStatus.CREATED);
+    }
+
+    @RequestMapping(method = RequestMethod.POST, path = "/customer/login", consumes = MediaType.APPLICATION_JSON_UTF8_VALUE, produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+    public ResponseEntity<LoginResponse> login(@RequestHeader("authorization") final String authorization) throws AuthenticationFailedException {
+        customerBusinessService.authFormatCheck(authorization);
+        byte[] decoded = Base64.getDecoder().decode(authorization.split(" ")[1]);
+        String decodedText = new String(decoded);
+        String[] decodedArray = decodedText.split(":");
+        CustomerAuthTokenEntity customerAuthTokenEntity = customerBusinessService.login(decodedArray[0], decodedArray[1]);
+        LoginResponse loginResponse = new LoginResponse();
+        loginResponse.setId(customerAuthTokenEntity.getCustomer().getUuid());
+        loginResponse.setMessage("LOGGED IN SUCCESSFULLY");
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("accessToken", customerAuthTokenEntity.getAccessToken());
+        return new ResponseEntity<LoginResponse>(loginResponse, headers, HttpStatus.OK);
     }
 }

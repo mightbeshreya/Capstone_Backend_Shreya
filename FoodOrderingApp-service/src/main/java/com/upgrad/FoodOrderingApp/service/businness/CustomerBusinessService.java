@@ -1,14 +1,21 @@
 package com.upgrad.FoodOrderingApp.service.businness;
 
 
+import com.upgrad.FoodOrderingApp.service.common.GenericErrorCode;
+import com.upgrad.FoodOrderingApp.service.common.UnexpectedException;
 import com.upgrad.FoodOrderingApp.service.dao.CustomerDao;
+import com.upgrad.FoodOrderingApp.service.entity.CustomerAuthTokenEntity;
 import com.upgrad.FoodOrderingApp.service.entity.CustomerEntity;
+import com.upgrad.FoodOrderingApp.service.exception.AuthenticationFailedException;
 import com.upgrad.FoodOrderingApp.service.exception.SignUpRestrictedException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZonedDateTime;
+import java.util.Base64;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -74,5 +81,53 @@ public class CustomerBusinessService {
         }
         Matcher m = pattern.matcher(pass);
         return m.matches();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public CustomerAuthTokenEntity login(final String contactNumber, final String password) throws AuthenticationFailedException {
+        CustomerEntity customerEntity = customerDao.getUserByContactNumber(contactNumber);
+        try {
+            if(customerEntity==null) {
+                throw new AuthenticationFailedException("ATH-001", "This contact number has not been registered!");
+            }
+            final String encryptedPassword = passwordCryptographyProvider.encrypt(password, customerEntity.getSalt());
+            if (encryptedPassword.equals(customerEntity.getPassword())) {
+                JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(encryptedPassword);
+                CustomerAuthTokenEntity customerAuthTokenEntity = new CustomerAuthTokenEntity();
+
+                final ZonedDateTime now = ZonedDateTime.now();
+                final ZonedDateTime expiresAt = now.plusHours(8);
+
+                customerAuthTokenEntity.setUuid(UUID.randomUUID().toString());
+                customerAuthTokenEntity.setCustomer(customerEntity);
+                customerAuthTokenEntity.setAccessToken(jwtTokenProvider.generateToken(customerEntity.getUuid(), now, expiresAt));
+                customerAuthTokenEntity.setExpiresAt(expiresAt);
+                customerAuthTokenEntity.setLoginAt(now);
+
+                customerDao.createAuthToken(customerAuthTokenEntity);
+
+                return customerAuthTokenEntity;
+            } else {
+                throw new AuthenticationFailedException("ATH-002", "Invalid Credentials");
+            }
+        }catch (Exception ex) {
+            GenericErrorCode genericErrorCode = GenericErrorCode.GEN_001;
+            throw new UnexpectedException(genericErrorCode, ex);
+        }
+    }
+
+    public void authFormatCheck (final String authorization) throws AuthenticationFailedException{
+        try {
+            byte[] decoded = Base64.getDecoder().decode(authorization.split(" ")[1]);
+            String decodedText = new String(decoded);
+            String[] decodedArray = decodedText.split(":");
+            if(authorization!=null && authorization.startsWith("Basic ") && decodedArray.length==2) {
+                return;
+            }else {
+                throw new AuthenticationFailedException("ATH-003", "Incorrect format of decoded customer name and password");
+            }
+        }catch(Exception e) {
+            throw new AuthenticationFailedException("ATH-003", "Incorrect format of decoded customer name and password");
+        }
     }
 }
