@@ -25,4 +25,11 @@ public class RestExceptionHandler {
                 new ErrorResponse().code(exc.getCode()).message(exc.getErrorMessage()), HttpStatus.CONFLICT
         );
     }
+
+    @ExceptionHandler(AuthorizationFailedException.class)
+    public ResponseEntity<ErrorResponse> AuthorizationFailedException(@RequestBody(required = false) AuthorizationFailedException exc, WebRequest request) {
+        return new ResponseEntity<ErrorResponse>(
+                new ErrorResponse().code(exc.getCode()).message(exc.getErrorMessage()), HttpStatus.CONFLICT
+        );
+    }
 }

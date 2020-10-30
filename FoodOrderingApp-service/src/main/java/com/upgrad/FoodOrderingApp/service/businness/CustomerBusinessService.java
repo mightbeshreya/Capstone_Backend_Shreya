@@ -7,6 +7,7 @@ import com.upgrad.FoodOrderingApp.service.dao.CustomerDao;
 import com.upgrad.FoodOrderingApp.service.entity.CustomerAuthTokenEntity;
 import com.upgrad.FoodOrderingApp.service.entity.CustomerEntity;
 import com.upgrad.FoodOrderingApp.service.exception.AuthenticationFailedException;
+import com.upgrad.FoodOrderingApp.service.exception.AuthorizationFailedException;
 import com.upgrad.FoodOrderingApp.service.exception.SignUpRestrictedException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -128,6 +129,30 @@ public class CustomerBusinessService {
             }
         }catch(Exception e) {
             throw new AuthenticationFailedException("ATH-003", "Incorrect format of decoded customer name and password");
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public CustomerAuthTokenEntity logout(final String accessToken) throws AuthorizationFailedException {
+        CustomerAuthTokenEntity customerAuthToken = customerDao.getUserAuthToken(accessToken);
+        //if the access token doesnt exist in the database it will throw an error with below message
+        //else if the access token exists in the database the logout time will be updated and persisted in the database
+        if (customerAuthToken == null) {
+            throw new AuthorizationFailedException("ATHR-001", "Customer is not Logged in.");
+        }
+        else {
+            if(customerAuthToken.getLogoutAt()!=null) {
+                throw new AuthorizationFailedException("ATHR-002", "Customer is logged out. Log in again to access this endpoint.");
+            }
+            final ZonedDateTime now = ZonedDateTime.now();
+            if(customerAuthToken.getExpiresAt().isBefore(now) || customerAuthToken.getExpiresAt().isEqual(now)){
+                throw new AuthorizationFailedException("ATHR-003", "Your session is expired. Log in again to access this endpoint.");
+            }
+            else {
+                customerAuthToken.setLogoutAt(now);
+                customerDao.updateCustomerLogoutAt(customerAuthToken);
+                return customerAuthToken;
+            }
         }
     }
 }
