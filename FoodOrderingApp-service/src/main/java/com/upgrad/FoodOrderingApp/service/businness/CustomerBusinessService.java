@@ -9,6 +9,7 @@ import com.upgrad.FoodOrderingApp.service.entity.CustomerEntity;
 import com.upgrad.FoodOrderingApp.service.exception.AuthenticationFailedException;
 import com.upgrad.FoodOrderingApp.service.exception.AuthorizationFailedException;
 import com.upgrad.FoodOrderingApp.service.exception.SignUpRestrictedException;
+import com.upgrad.FoodOrderingApp.service.exception.UpdateCustomerException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -153,6 +154,31 @@ public class CustomerBusinessService {
                 customerDao.updateCustomerLogoutAt(customerAuthToken);
                 return customerAuthToken;
             }
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public CustomerEntity updateCustomer(final String accessToken, final String firstname, final String lastname)
+            throws AuthorizationFailedException, UpdateCustomerException {
+        if(firstname==null||firstname=="") {
+            throw new UpdateCustomerException("UCR-002", "First name field should not be empty");
+        }
+        CustomerAuthTokenEntity customerAuthToken = customerDao.getUserAuthToken(accessToken);
+        if (customerAuthToken == null) {
+            throw new AuthorizationFailedException("ATHR-001", "Customer is not Logged in.");
+        }else {
+            if(customerAuthToken.getLogoutAt()!=null) {
+                throw new AuthorizationFailedException("ATHR-002", "Customer is logged out. Log in again to access this endpoint.");
+            }
+            final ZonedDateTime now = ZonedDateTime.now();
+            if(customerAuthToken.getExpiresAt().isBefore(now) || customerAuthToken.getExpiresAt().isEqual(now)) {
+                throw new AuthorizationFailedException("ATHR-003", "Your session is expired. Log in again to access this endpoint.");
+            }
+            CustomerEntity customerEntity = customerAuthToken.getCustomer();
+            customerEntity.setFirstName(firstname);
+            customerEntity.setLastName(lastname);
+            CustomerEntity updatedCustomer = customerDao.updateCustomerName(customerEntity);
+            return updatedCustomer;
         }
     }
 }

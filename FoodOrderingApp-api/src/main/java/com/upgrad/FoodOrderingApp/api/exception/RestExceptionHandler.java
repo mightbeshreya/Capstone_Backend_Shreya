@@ -32,4 +32,11 @@ public class RestExceptionHandler {
                 new ErrorResponse().code(exc.getCode()).message(exc.getErrorMessage()), HttpStatus.CONFLICT
         );
     }
+
+    @ExceptionHandler(UpdateCustomerException.class)
+    public ResponseEntity<ErrorResponse> UpdateCustomerException(@RequestBody(required = false) UpdateCustomerException exc, WebRequest request) {
+        return new ResponseEntity<ErrorResponse>(
+                new ErrorResponse().code(exc.getCode()).message(exc.getErrorMessage()), HttpStatus.CONFLICT
+        );
+    }
 }
